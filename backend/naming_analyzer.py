@@ -3,8 +3,6 @@ import nltk
 from typing import List, Dict, Any, Callable
 from models import AnalysisResult
 
-# --- NLTK Data Download ---
-# 确保必要的 NLTK 数据包已下载
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -16,9 +14,6 @@ except LookupError:
     nltk.download('averaged_perceptron_tagger', quiet=True)
 
 class NamingAnalyzer:
-    """
-    A class to analyze code naming conventions based on syntax and semantics (Part-of-Speech).
-    """
     def __init__(self):
         self.rules = {
             "C001": "Class names should use PascalCase",
@@ -36,13 +31,11 @@ class NamingAnalyzer:
             "I001": "Interface names should start with 'I' and use PascalCase"
         }
         
-        # 使用 set 以获得更快的查找性能
         self.IGNORED_PREFIXES = {
             "Visit", "Override", "Handle", "On", "Test", "Setup", 
             "TearDown", "Benchmark", "Mock", "Stub"
         }
         
-        # --- 重构亮点 1: 使用字典分发代替 if/elif 链 ---
         self.handler_map: Dict[str, Callable[[str, int], List[AnalysisResult]]] = {
             "class": self._analyze_class_name,
             "interface": self._analyze_interface_name,
@@ -54,22 +47,17 @@ class NamingAnalyzer:
         }
     
     def analyze_names(self, parsed_data: Dict[str, Any]) -> List[AnalysisResult]:
-        """
-        Analyzes a list of code names from parsed data and returns a list of violations.
-        """
         results = []
         names = parsed_data.get("names", [])
         
         for name_info in names:
-            name_type = name_info.get("Type", "").lower() # 转为小写以匹配 handler_map
+            name_type = name_info.get("Type", "").lower()
             name = name_info.get("Name", "")
             line = name_info.get("Line", 0)
             
-            # Skip empty names or compiler-generated names
             if not name or name.startswith("<") or name.startswith("_"):
                 continue
             
-            # 使用字典分发调用对应的处理函数
             handler = self.handler_map.get(name_type)
             if handler:
                 results.extend(handler(name, line))
@@ -93,7 +81,6 @@ class NamingAnalyzer:
     def _analyze_method_name(self, name: str, line: int) -> List[AnalysisResult]:
         results = []
         
-        # Skip special .NET methods
         if name in ["Main", "ToString", "GetHashCode", "Equals", "Dispose"]:
             return results
         
@@ -111,7 +98,6 @@ class NamingAnalyzer:
         if not self._is_pascal_case(name):
             results.append(AnalysisResult(line=line, name=name, rule_id="P001", message=f"Property name '{name}' should use PascalCase", severity="warning"))
         
-        # Skip noun phrase check for boolean properties (Is*, Has*, Can*, Should*, etc.)
         boolean_prefixes = ["Is", "Has", "Can", "Should", "Will", "Would", "Could", "Must", "Might"]
         is_boolean_property = any(name.startswith(prefix) for prefix in boolean_prefixes)
         
@@ -120,11 +106,9 @@ class NamingAnalyzer:
         return results
     
     def _analyze_field_name(self, name: str, line: int) -> List[AnalysisResult]:
-        # This logic assumes a simple convention. Real-world C# can be more complex.
         results = []
         if name.startswith("_"):
             field_name = name.lstrip("_")
-            # Check if it's all uppercase (like MAX_CONNECTIONS) - this should be camelCase
             if field_name.isupper() or "_" in field_name:
                 results.append(AnalysisResult(line=line, name=name, rule_id="F001", message=f"Private field name '{name}' should use camelCase (after underscore)", severity="warning"))
             elif not self._is_camel_case(field_name):
@@ -149,32 +133,24 @@ class NamingAnalyzer:
             results.append(AnalysisResult(line=line, name=name, rule_id="PA002", message=f"Parameter name '{name}' should be more descriptive", severity="info"))
         return results
 
-    # --- Helper Methods ---
 
     def _is_pascal_case(self, name: str) -> bool:
-        """Check if name follows PascalCase convention."""
         return bool(re.match(r'^[A-Z][a-zA-Z0-9]*$', name))
 
     def _is_camel_case(self, name: str) -> bool:
-        """Check if name follows camelCase convention."""
         return bool(re.match(r'^[a-z][a-zA-Z0-9]*$', name))
 
     def _split_case(self, name: str) -> List[str]:
-        """Splits PascalCase and camelCase into words."""
         return re.findall(r'[A-Z][a-z0-9]*|[a-z]+[a-z0-9]*', name)
 
     def _starts_with_verb(self, name: str) -> bool:
-        """Check if name starts with a verb using NLTK."""
         try:
             words = self._split_case(name)
             if not words:
                 return False
             
             first_word = words[0].lower()
-            # NLTK can be slow, a simple prefix check can be a fast path
-            # 大幅扩充常见动词集合以解决 GenerateReport 等误报问题
             common_verbs = {
-                # 基础动词
                 "get", "set", "is", "has", "can", "should", "will", "would", "could",
                 "add", "remove", "delete", "create", "update", "save", "load", "insert",
                 "find", "search", "filter", "sort", "validate", "check", "verify",
@@ -182,7 +158,6 @@ class NamingAnalyzer:
                 "start", "stop", "pause", "resume", "reset", "clear", "clean", "flush",
                 "build", "make", "construct", "destroy", "dispose", "release",
                 "batch", "parse", "format", "convert", "transform", "map", "reduce", "merge",
-                # 常见编程动词 - 解决 GenerateReport 误报
                 "generate", "render", "display", "show", "hide", "toggle", "switch", "process",
                 "send", "receive", "transmit", "broadcast", "publish", "subscribe",
                 "connect", "disconnect", "bind", "unbind", "attach", "detach",
@@ -192,13 +167,10 @@ class NamingAnalyzer:
                 "begin", "end", "complete", "finish", "cancel", "abort", "retry",
                 "lock", "unlock", "encrypt", "decrypt", "compress", "decompress",
                 "serialize", "deserialize", "encode", "decode", "hash", "sign",
-                # UI/UX 相关动词
                 "click", "select", "choose", "pick", "drag", "drop", "scroll", "zoom",
                 "navigate", "redirect", "refresh", "reload", "submit", "apply", "confirm",
-                # 数据操作动词
                 "query", "count", "sum", "average", "group", "join", "split", "slice",
                 "append", "prepend", "replace", "substitute", "trim", "pad", "fill",
-                # 状态管理动词
                 "track", "monitor", "observe", "watch", "listen", "notify", "alert",
                 "log", "record", "store", "cache", "buffer", "queue", "schedule"
             }
@@ -208,14 +180,12 @@ class NamingAnalyzer:
             tokens = nltk.word_tokenize(first_word)
             if tokens:
                 pos_tags = nltk.pos_tag(tokens)
-                return pos_tags[0][1].startswith('VB') # VB* means any form of verb
+                return pos_tags[0][1].startswith('VB')
         except Exception as e:
             print(f"Error during NLTK verb check for '{name}': {e}")
         return False
 
     def _is_noun_phrase(self, name: str) -> bool:
-        """Check if name represents a noun or noun phrase (stricter)."""
-        # Heuristic: The last word in a phrase is often the head noun.
         try:
             words = self._split_case(name)
             if not words:
@@ -225,7 +195,7 @@ class NamingAnalyzer:
             tokens = nltk.word_tokenize(last_word)
             if tokens:
                 pos_tags = nltk.pos_tag(tokens)
-                return pos_tags[0][1].startswith('NN') # NN* means any form of noun
+                return pos_tags[0][1].startswith('NN')
         except Exception as e:
             print(f"Error during NLTK noun check for '{name}': {e}")
         return False

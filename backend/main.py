@@ -9,7 +9,6 @@ from naming_analyzer import NamingAnalyzer
 
 app = FastAPI(title="CodeNamer API", version="1.0.0")
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -18,7 +17,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the naming analyzer
 analyzer = NamingAnalyzer()
 
 @app.get("/")
@@ -36,11 +34,11 @@ async def analyze_code(request: CodeAnalysisRequest):
         raise HTTPException(status_code=400, detail="Code cannot be empty")
     
     try:
-        # Get the path to the C# parser helper
+        
         parser_path = Path(__file__).parent.parent / "csharp-parser-helper"
         exe_path = parser_path / "bin" / "Debug" / "net8.0" / "CSharpParserHelper.exe"
         
-        # If exe doesn't exist, try to build it
+        
         if not exe_path.exists():
             build_result = subprocess.run(
                 ["dotnet", "build"],
@@ -54,7 +52,7 @@ async def analyze_code(request: CodeAnalysisRequest):
                     detail=f"Failed to build C# parser: {build_result.stderr}"
                 )
         
-        # Call the C# parser helper
+       
         result = subprocess.run(
             [str(exe_path), request.code],
             capture_output=True,
@@ -68,9 +66,9 @@ async def analyze_code(request: CodeAnalysisRequest):
                 detail=f"Parser error: {result.stderr}"
             )
         
-        # Parse the JSON output from the C# helper
+       
         try:
-            # --- 终极调试：打印原始 JSON ---
+           
             print("----------- RAW JSON FROM C# PARSER -----------")
             print(result.stdout)
             print("---------------------------------------------")
@@ -82,10 +80,8 @@ async def analyze_code(request: CodeAnalysisRequest):
                 detail=f"Failed to parse parser output: {str(e)}"
             )
         
-        # Analyze naming conventions
-        analysis_results = analyzer.analyze_names(parsed_data)
         
-        # Get parser errors if any
+        analysis_results = analyzer.analyze_names(parsed_data)
         parser_errors = parsed_data.get("errors", [])
         
         return CodeAnalysisResponse(
