@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from models import CodeAnalysisRequest, CodeAnalysisResponse, AnalysisResult
 from naming_analyzer import NamingAnalyzer
+from vue_parser import VueParser
 
 app = FastAPI(title="CodeNamer API", version="1.0.0")
 
@@ -18,6 +19,7 @@ app.add_middleware(
 )
 
 analyzer = NamingAnalyzer()
+vue_parser = VueParser()
 
 @app.get("/")
 async def root():
@@ -26,62 +28,71 @@ async def root():
 @app.post("/analyze", response_model=CodeAnalysisResponse)
 async def analyze_code(request: CodeAnalysisRequest):
     """Analyze code for naming convention issues"""
-    
-    if request.language.lower() != "csharp":
-        raise HTTPException(status_code=400, detail="Only C# is currently supported")
-    
+
+    supported_languages = ["csharp", "vue"]
+    if request.language.lower() not in supported_languages:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Language '{request.language}' is not supported. Supported languages: {', '.join(supported_languages)}"
+        )
+
     if not request.code.strip():
         raise HTTPException(status_code=400, detail="Code cannot be empty")
-    
+
     try:
-        
-        parser_path = Path(__file__).parent.parent / "csharp-parser-helper"
-        exe_path = parser_path / "bin" / "Debug" / "net8.0" / "CSharpParserHelper.exe"
-        
-        
-        if not exe_path.exists():
-            build_result = subprocess.run(
-                ["dotnet", "build"],
-                cwd=parser_path,
-                capture_output=True,
-                text=True
-            )
-            if build_result.returncode != 0:
-                raise HTTPException(
-                    status_code=500, 
-                    detail=f"Failed to build C# parser: {build_result.stderr}"
-                )
-        
-       
-        result = subprocess.run(
-            [str(exe_path), request.code],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        if result.returncode != 0:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Parser error: {result.stderr}"
-            )
-        
-       
-        try:
-           
-            print("----------- RAW JSON FROM C# PARSER -----------")
-            print(result.stdout)
+        # 根据语言选择不同的解析器
+        if request.language.lower() == "vue":
+            # 使用Vue解析器
+            parsed_data = vue_parser.parse_vue_file(request.code)
+            print("----------- RAW JSON FROM VUE PARSER -----------")
+            print(json.dumps(parsed_data, indent=2))
             print("---------------------------------------------")
-            
-            parsed_data = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to parse parser output: {str(e)}"
+
+        else:
+            # 使用C#解析器
+            parser_path = Path(__file__).parent.parent / "csharp-parser-helper"
+            exe_path = parser_path / "bin" / "Debug" / "net8.0" / "CSharpParserHelper.exe"
+
+            if not exe_path.exists():
+                build_result = subprocess.run(
+                    ["dotnet", "build"],
+                    cwd=parser_path,
+                    capture_output=True,
+                    text=True
+                )
+                if build_result.returncode != 0:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to build C# parser: {build_result.stderr}"
+                    )
+
+            result = subprocess.run(
+                [str(exe_path), request.code],
+                capture_output=True,
+                text=True,
+                timeout=30
             )
-        
-        
-        analysis_results = analyzer.analyze_names(parsed_data)
+
+            if result.returncode != 0:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Parser error: {result.stderr}"
+                )
+
+            try:
+                print("----------- RAW JSON FROM C# PARSER -----------")
+                print(result.stdout)
+                print("---------------------------------------------")
+
+                parsed_data = json.loads(result.stdout)
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to parse parser output: {str(e)}"
+                )
+
+        # 分析命名规范
+        analysis_results = analyzer.analyze_names(parsed_data, request.language.lower())
         parser_errors = parsed_data.get("errors", [])
         
         return CodeAnalysisResponse(

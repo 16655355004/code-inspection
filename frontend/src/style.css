@@ -2,7 +2,7 @@
 
 /* 1. CSS 变量定义 (从组件中移至全局，方便复用) */
 :root {
-  --bg-color: #f4f7f9;
+  /* --bg-color: #f4f7f9; */
   --text-color: #2c3e50;
   --card-bg-color: #ffffff;
   --card-border-color: #e1e8ed;

@@ -192,14 +192,14 @@ def print_console_output(analysis_results: List[dict], args: argparse.Namespace)
         
         # 显示错误
         if "error" in file_result:
-            print(f"\n❌ {file_path}")
+            print(f"\n {file_path}")
             print(f"   错误: {file_result['error']}")
             continue
         
         # 显示解析器错误
         parser_errors = file_result.get("parser_errors", [])
         if parser_errors:
-            print(f"\n⚠️  {file_path} - 解析器错误:")
+            print(f"\n  {file_path} - 解析器错误:")
             for error in parser_errors:
                 print(f"   第 {error.get('line', '?')} 行: {error.get('message', '未知错误')}")
         
@@ -207,14 +207,14 @@ def print_console_output(analysis_results: List[dict], args: argparse.Namespace)
         results = filter_by_severity(file_result.get("results", []), args.severity)
         
         if results:
-            print(f"\n📝 {file_path} - 发现 {len(results)} 个命名问题:")
+            print(f"\n {file_path} - 发现 {len(results)} 个命名问题:")
             
             for issue in results:
                 severity_icon = {"error": "🔴", "warning": "🟡", "info": "🔵"}.get(issue["severity"], "🔵")
                 print(f"   {severity_icon} 第 {issue['line']} 行: {issue['name']}")
                 print(f"      [{issue['rule_id']}] {issue['message']}")
         elif file_result.get("total_issues", 0) == 0:
-            print(f"\n✅ {file_path} - 无命名问题")
+            print(f"\n {file_path} - 无命名问题")
 
 def print_json_output(analysis_results: List[dict], args: argparse.Namespace):
     """以 JSON 格式输出结果"""
